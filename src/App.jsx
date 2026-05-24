@@ -31,7 +31,7 @@ const WEATHER_OPT = ["晴","多雲","清晨霧後晴","霧雨"];
 
 // Pesticide tests
 const PESTICIDE_ITEMS = [
-  "撲滅寧","賽普洛","芬普尼","達馬松","益達胺","亞滅培","可尼丁","氟尼胺","百克敏","依普同",
+  "賽滅寧","賽洛寧","芬普尼","達馬松","益達胺","亞滅培","可尼丁","氟尼胺","百克敏","依普同","撲滅寧","賽普洛",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -176,22 +176,22 @@ function PesticidePanel({ pest, onChange, readOnly }) {
   const set = (k,v) => onChange({ ...p, [k]:v });
 
   // 拼配比例計算：
-  // detected * ratio + clean * (1-ratio) <= 0.05
-  // ratio <= (0.05 - clean) / (detected - clean)
+  // 1斤驗出茶 + x斤無驗出茶，混合後 <= 0.05 ppm
+  // (detected * 1 + clean * x) / (1 + x) <= MRL
+  // x >= (detected - MRL) / (MRL - clean)
   const MRL = 0.05;
   const detected = parseFloat(p.detectedPpm) || 0;
   const clean = parseFloat(p.cleanPpm) || 0;
   let blendResult = null;
-  if (detected > MRL && detected > clean) {
-    const maxRatio = (MRL - clean) / (detected - clean);
-    if (maxRatio > 0 && maxRatio < 1) {
-      const cleanRatio = 1 - maxRatio;
-      blendResult = {
-        maxRatio: (maxRatio * 100).toFixed(1),
-        cleanRatio: (cleanRatio * 100).toFixed(1),
-        blendPpm: (detected * maxRatio + clean * cleanRatio).toFixed(4),
-      };
-    }
+  if (detected > MRL && MRL > clean) {
+    const minClean = (detected - MRL) / (MRL - clean);
+    // 無條件進位到整斤，最少1斤
+    const safeClean = Math.max(1, Math.ceil(minClean));
+    const blendPpm = (detected * 1 + clean * safeClean) / (1 + safeClean);
+    blendResult = {
+      safeClean,
+      blendPpm: blendPpm.toFixed(4),
+    };
   }
 
   return (
@@ -213,19 +213,19 @@ function PesticidePanel({ pest, onChange, readOnly }) {
         </div>
         {blendResult && (
           <div style={{ marginTop:10, background:"#fff", borderRadius:8, padding:"12px", border:"1px solid #6dab85" }}>
-            <div style={{ fontSize:12, color:"#5a7060", marginBottom:6 }}>拼配建議（低於 0.05 ppm）：</div>
-            <div style={{ display:"flex", gap:8 }}>
-              <div style={{ flex:1, background:"#fff8e7", borderRadius:8, padding:"8px", textAlign:"center", border:"1px solid #d4b04a" }}>
-                <div style={{ fontSize:11, color:"#8b6a20" }}>驗出茶葉最多</div>
-                <div style={{ fontSize:20, fontWeight:"bold", color:"#a07828" }}>{blendResult.maxRatio}%</div>
+            <div style={{ fontSize:12, color:"#5a7060", marginBottom:8 }}>拼配建議（低於 0.05 ppm）：</div>
+            <div style={{ background:"#eef7f1", borderRadius:8, padding:"12px", border:"1px solid #6dab85", textAlign:"center" }}>
+              <div style={{ fontSize:13, color:"#5a7060", marginBottom:4 }}>驗出茶葉 1 斤，至少需搭配</div>
+              <div style={{ fontSize:36, fontWeight:"bold", color:"#3d6b50" }}>
+                {blendResult.safeClean} 斤
               </div>
-              <div style={{ flex:1, background:"#eef7f1", borderRadius:8, padding:"8px", textAlign:"center", border:"1px solid #6dab85" }}>
-                <div style={{ fontSize:11, color:"#3d6b50" }}>無驗出茶葉至少</div>
-                <div style={{ fontSize:20, fontWeight:"bold", color:"#3d6b50" }}>{blendResult.cleanRatio}%</div>
+              <div style={{ fontSize:12, color:"#7a8a78", marginBottom:4 }}>無驗出茶葉（1 : {blendResult.safeClean}）</div>
+              <div style={{ fontSize:11, color:"#8b9a88" }}>
+                拼配後約 {blendResult.blendPpm} ppm ✓
               </div>
             </div>
-            <div style={{ fontSize:11, color:"#8b9a88", marginTop:6, textAlign:"center" }}>
-              拼配後約 {blendResult.blendPpm} ppm，低於定量極限 ✓
+            <div style={{ fontSize:11, color:"#8b9a88", marginTop:8, textAlign:"center" }}>
+              例：有驗出茶 10 斤，需搭配無驗出茶 {blendResult.safeClean * 10} 斤以上
             </div>
           </div>
         )}
