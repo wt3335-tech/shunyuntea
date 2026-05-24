@@ -1,13 +1,12 @@
-import { dbLoad, dbSave } from "./db.js"
 import { useState, useEffect, useCallback } from "react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const GRADES = [
-  { id:"S", label:"頂級", sub:"Top Reserve",  min:88, color:"#a07828", light:"#fffaed", border:"#d4b04a", badge:"👑", pkg:"頂級木盒禮裝", price:"NT$3,600 / 75g" },
-  { id:"A", label:"精選", sub:"Premium",       min:76, color:"#3d6b50", light:"#eef7f1", border:"#6dab85", badge:"🌟", pkg:"典藏罐裝",     price:"NT$2,200 / 75g" },
-  { id:"B", label:"優選", sub:"Fine Grade",    min:62, color:"#2e5f80", light:"#edf4f9", border:"#5a97ba", badge:"⭐", pkg:"精緻紙盒",     price:"NT$1,400 / 75g" },
-  { id:"C", label:"標準", sub:"Standard",      min: 0, color:"#6b5a48", light:"#f5f1ec", border:"#a89480", badge:"🍃", pkg:"素雅袋裝",     price:"NT$800 / 75g"   },
+  { id:"S", label:"頂級", sub:"Top Reserve",  min:88, color:"#a07828", light:"#fffaed", border:"#d4b04a", badge:"👑", pkg:"建議售價等級", price:"NT$6,000 以上 / 斤" },
+  { id:"A", label:"精選", sub:"Premium",       min:76, color:"#3d6b50", light:"#eef7f1", border:"#6dab85", badge:"🌟", pkg:"建議售價等級", price:"NT$4,000 以上 / 斤" },
+  { id:"B", label:"優選", sub:"Fine Grade",    min:62, color:"#2e5f80", light:"#edf4f9", border:"#5a97ba", badge:"⭐", pkg:"建議售價等級", price:"NT$3,000 以上 / 斤" },
+  { id:"C", label:"標準", sub:"Standard",      min: 0, color:"#6b5a48", light:"#f5f1ec", border:"#a89480", badge:"🍃", pkg:"建議售價等級", price:"NT$3,000 以下 / 斤" },
 ];
 
 const DIMS = [
@@ -25,7 +24,7 @@ const WEATHER_OPT = ["晴","多雲","清晨霧後晴","霧雨"];
 
 // Pesticide tests
 const PESTICIDE_ITEMS = [
-  "賽滅寧","賽洛寧","芬普尼","達馬松","益達胺","亞滅培","可尼丁","氟尼胺","百克敏","依普同",
+  "撲滅寧","賽洛寧","芬普尼","達馬松","益達胺","亞滅培","可尼丁","氟尼胺","百克敏","依普同",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -64,22 +63,21 @@ function suggestBlendId(sourceBatchNos) {
   return "BL-" + parts.join("+");
 }
 
-// ─── Cloud Storage via Google 試算表 ─────────────────────────────────────────
+// ─── Cloud Storage (window.storage shared across all users) ──────────────────
+
+const STORAGE_KEY = "fushoushan_tea_data";
 
 async function loadData() {
   try {
-    const remote = await dbLoad();
-    if (remote) return remote;
-  } catch {}
-  try {
-    const local = localStorage.getItem("fushoushan_tea");
-    return local ? JSON.parse(local) : null;
+    const result = await window.storage.get(STORAGE_KEY, true);
+    return result ? JSON.parse(result.value) : null;
   } catch { return null; }
 }
 
 async function saveData(data) {
-  try { localStorage.setItem("fushoushan_tea", JSON.stringify(data)); } catch {}
-  try { await dbSave(data); } catch {}
+  try {
+    await window.storage.set(STORAGE_KEY, JSON.stringify(data), true);
+  } catch {}
 }
 
 // ─── Export CSV ───────────────────────────────────────────────────────────────
@@ -167,7 +165,7 @@ function PesticidePanel({ pest, onChange, readOnly }) {
         ))}
       </div>
       {!readOnly && <>
-        <MInput label="報告編號" val={p.reportNo} set={v=>set("reportNo",v)} ph="如 SGS-2025-XXXXXX"/>
+        <MInput label="報告編號" val={p.reportNo} set={v=>set("reportNo",v)} ph="如 SGS-XXXXXX"/>
         <MInput label="檢驗日期" type="date" val={p.testDate} set={v=>set("testDate",v)}/>
         <MInput label="檢驗機構" val={p.lab} set={v=>set("lab",v)} ph="如 SGS、台灣檢驗科技"/>
       </>}
@@ -631,7 +629,7 @@ export default function App() {
               <Lbl>個人備註</Lbl>
               <textarea value={curJudge.note} onChange={e=>setCurJudge(c=>({...c,note:e.target.value}))}
                 placeholder="記錄個人品評感受..."
-                style={{ width:"100%", minHeight:80, border:"1px solid #d0c8be", borderRadius:10, padding:12, fontSize:14, background:"rgba(255,255,255,.6)", color:"#251a10", fontFamily:"serif", resize:"vertical", outline:"none", boxSizing:"border-box", lineHeight:1.7 }}/>
+                style={{ width:"100%", minHeight:80, border:"1px solid #d0c8be", borderRadius:10, padding:12, fontSize:"16px", background:"rgba(255,255,255,.6)", color:"#251a10", fontFamily:"serif", resize:"vertical", outline:"none", boxSizing:"border-box", lineHeight:1.7 }}/>
             </div>
             <div style={{ display:"flex", gap:8 }}>
               <Btn label="← 返回" onClick={()=>setJudgeStep(0)} secondary/>
@@ -839,6 +837,14 @@ export default function App() {
               農藥檢驗記錄 {curBatch.pesticide?(curBatch.pesticide.passed?"✓":"✗"):"（未填）"}
             </button>
           )}
+          <button onClick={()=>{
+            if(window.confirm(`確定刪除「${curBatch.batchNo}」？此動作無法復原`)){
+              setBatches(bs=>bs.filter(b=>b.id!==curBatch.id));
+              setPage("home");
+            }
+          }} style={{ ...outlineBtn, marginTop:8, color:"#b84040", borderColor:"#e0b0b0" }}>
+            刪除此批次
+          </button>
         </div>
       )}
 
@@ -862,6 +868,14 @@ export default function App() {
               農藥檢驗記錄 {curBlend.pesticide?(curBlend.pesticide.passed?"✓":"✗"):"（未填）"}
             </button>
           )}
+          <button onClick={()=>{
+            if(window.confirm(`確定刪除「${curBlend.blendNo}」？此動作無法復原`)){
+              setBlends(bls=>bls.filter(b=>b.id!==curBlend.id));
+              setPage("home");
+            }
+          }} style={{ ...outlineBtn, marginTop:8, color:"#b84040", borderColor:"#e0b0b0" }}>
+            刪除此批次
+          </button>
         </div>
       )}
 
@@ -899,7 +913,7 @@ export default function App() {
       {/* ══ SUMMARY */}
       {page==="summary" && (
         <div style={{ padding:"14px 14px 40px" }}>
-          <h2 style={{ fontSize:16,color:"#2c4a32",margin:"4px 0 14px",letterSpacing:1 }}>◈ 2025年福壽山春茶 總覽</h2>
+          <h2 style={{ fontSize:16,color:"#2c4a32",margin:"4px 0 14px",letterSpacing:1 }}>◈ 福壽山順韻 品評總覽</h2>
           {[["原批次",batches],["拼配批次",blends]].map(([lbl,list])=>{
             const fin=list.filter(b=>b.finalized);
             const scores=fin.map(b=>b.finalScore);
@@ -1094,7 +1108,7 @@ export default function App() {
 // ─── Micro components ─────────────────────────────────────────────────────────
 
 const card = { background:"rgba(255,255,255,.7)", borderRadius:14, padding:14, marginBottom:12, boxShadow:"0 1px 10px rgba(30,20,10,.07)" };
-const inputStyle = { width:"100%", padding:"10px 12px", borderRadius:10, border:"1px solid #d0c8be", fontSize:14, fontFamily:"serif", background:"rgba(255,255,255,.7)", color:"#251a10", boxSizing:"border-box", outline:"none" };
+const inputStyle = { width:"100%", padding:"10px 12px", borderRadius:10, border:"1px solid #d0c8be", fontSize:"16px", fontFamily:"serif", background:"rgba(255,255,255,.7)", color:"#251a10", boxSizing:"border-box", outline:"none" };
 const outlineBtn = { width:"100%", padding:"12px", borderRadius:11, border:"1.5px solid #d0c8be", background:"transparent", color:"#5a6a58", fontSize:14, cursor:"pointer", fontFamily:"serif" };
 const btnSm = { padding:"6px 12px", borderRadius:16, fontSize:12, cursor:"pointer", fontFamily:"serif" };
 
