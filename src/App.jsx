@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -24,7 +26,7 @@ const WEATHER_OPT = ["晴","多雲","清晨霧後晴","霧雨"];
 
 // Pesticide tests
 const PESTICIDE_ITEMS = [
-  "撲滅寧","賽洛寧","芬普尼","達馬松","益達胺","亞滅培","可尼丁","氟尼胺","百克敏","依普同",
+  "賽滅寧","賽洛寧","芬普尼","達馬松","益達胺","亞滅培","可尼丁","氟尼胺","百克敏","依普同",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,21 +65,37 @@ function suggestBlendId(sourceBatchNos) {
   return "BL-" + parts.join("+");
 }
 
-// ─── Cloud Storage (window.storage shared across all users) ──────────────────
+// ─── Firebase Firestore 雲端資料庫 ───────────────────────────────────────────
 
-const STORAGE_KEY = "fushoushan_tea_data";
+const firebaseConfig = {
+  apiKey: "AIzaSyBR7f5SZzFKKfTuHUYHkWdJJWT4sBmNwuE",
+  authDomain: "fushoushan-tea.firebaseapp.com",
+  projectId: "fushoushan-tea",
+  storageBucket: "fushoushan-tea.firebasestorage.app",
+  messagingSenderId: "345028316055",
+  appId: "1:345028316055:web:91011a23d738c7390cd2d2"
+};
+
+const _app = initializeApp(firebaseConfig);
+const _db = getFirestore(_app);
+const _ref = doc(_db, "teaapp", "data");
 
 async function loadData() {
   try {
-    const result = await window.storage.get(STORAGE_KEY, true);
-    return result ? JSON.parse(result.value) : null;
+    const snap = await getDoc(_ref);
+    if (snap.exists()) return JSON.parse(snap.data().payload);
+  } catch(e) { console.error("loadData:", e); }
+  // fallback localStorage
+  try {
+    const local = localStorage.getItem("fushoushan_tea");
+    return local ? JSON.parse(local) : null;
   } catch { return null; }
 }
 
 async function saveData(data) {
-  try {
-    await window.storage.set(STORAGE_KEY, JSON.stringify(data), true);
-  } catch {}
+  // 同時存 Firebase 和 localStorage
+  try { await setDoc(_ref, { payload: JSON.stringify(data) }); } catch(e) { console.error("saveData firebase:", e); }
+  try { localStorage.setItem("fushoushan_tea", JSON.stringify(data)); } catch {}
 }
 
 // ─── Export CSV ───────────────────────────────────────────────────────────────
@@ -629,7 +647,7 @@ export default function App() {
               <Lbl>個人備註</Lbl>
               <textarea value={curJudge.note} onChange={e=>setCurJudge(c=>({...c,note:e.target.value}))}
                 placeholder="記錄個人品評感受..."
-                style={{ width:"100%", minHeight:80, border:"1px solid #d0c8be", borderRadius:10, padding:12, fontSize:"16px", background:"rgba(255,255,255,.6)", color:"#251a10", fontFamily:"serif", resize:"vertical", outline:"none", boxSizing:"border-box", lineHeight:1.7 }}/>
+                style={{ width:"100%", minHeight:80, border:"1px solid #d0c8be", borderRadius:10, padding:12, fontSize:"16px", background:"rgba(255,255,255,.6)", color:"#251a10", fontFamily:"serif", resize:"none", outline:"none", boxSizing:"border-box", lineHeight:1.7, WebkitTextSizeAdjust:"100%" }}/>
             </div>
             <div style={{ display:"flex", gap:8 }}>
               <Btn label="← 返回" onClick={()=>setJudgeStep(0)} secondary/>
