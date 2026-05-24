@@ -21,12 +21,17 @@ const DIMS = [
   { key:"aftertaste", label:"韻　　味", w:15, hint:"餘韻綿長、山頭氣" },
 ];
 
-const FLAVOR_TAGS = ["花香","蜜香","果香","清新","草香","奶香","高山氣","鮮爽","甘潤","醇厚","清雅","多層次","火味"];
+const FLAVOR_TAGS = [
+  // 正面風味
+  "花香","蜜香","果香","清新","草香","奶香","高山氣","鮮爽","甘潤","醇厚","清雅","多層次","回甘強","湯色明亮",
+  // 負面風味
+  "臭菁","火味","乾燥味","水味","空洞","菁澀","悶味","雜味","老葉味","異味",
+];
 const WEATHER_OPT = ["晴","多雲","清晨霧後晴","霧雨"];
 
 // Pesticide tests
 const PESTICIDE_ITEMS = [
-  "撲滅寧","賽普洛","依普同","達馬松","益達胺","亞滅培","可尼丁","氟尼胺","百克敏","腐絕",
+  "撲滅寧","賽普洛","芬普尼","達馬松","益達胺","亞滅培","可尼丁","氟尼胺","百克敏","依普同",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -167,10 +172,69 @@ function ScoreRing({ score, size=120 }) {
 // ─── Pesticide Panel ──────────────────────────────────────────────────────────
 
 function PesticidePanel({ pest, onChange, readOnly }) {
-  const p = pest || { passed:null, reportNo:"", testDate:"", lab:"", failedItems:[], notes:"" };
+  const p = pest || { passed:null, reportNo:"", testDate:"", lab:"", failedItems:[], notes:"", detectedPpm:"", cleanPpm:"" };
   const set = (k,v) => onChange({ ...p, [k]:v });
+
+  // 拼配比例計算：
+  // detected * ratio + clean * (1-ratio) <= 0.05
+  // ratio <= (0.05 - clean) / (detected - clean)
+  const MRL = 0.05;
+  const detected = parseFloat(p.detectedPpm) || 0;
+  const clean = parseFloat(p.cleanPpm) || 0;
+  let blendResult = null;
+  if (detected > MRL && detected > clean) {
+    const maxRatio = (MRL - clean) / (detected - clean);
+    if (maxRatio > 0 && maxRatio < 1) {
+      const cleanRatio = 1 - maxRatio;
+      blendResult = {
+        maxRatio: (maxRatio * 100).toFixed(1),
+        cleanRatio: (cleanRatio * 100).toFixed(1),
+        blendPpm: (detected * maxRatio + clean * cleanRatio).toFixed(4),
+      };
+    }
+  }
+
   return (
     <div>
+      {/* 拼配比例計算器 */}
+      <div style={{ background:"rgba(61,107,80,.06)", border:"1px solid rgba(61,107,80,.2)", borderRadius:12, padding:12, marginBottom:14 }}>
+        <Lbl>拼配降殘計算（定量極限 0.05 ppm）</Lbl>
+        <div style={{ marginTop:8 }}>
+          <div style={{ fontSize:12, color:"#5a7060", marginBottom:4 }}>驗出農藥的茶葉（ppm）</div>
+          <input type="number" step="0.01" value={p.detectedPpm||""} onChange={e=>!readOnly&&set("detectedPpm",e.target.value)}
+            placeholder="如 0.08" readOnly={readOnly}
+            style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:"1px solid #d0c8be", fontSize:"16px", fontFamily:"serif", background:"rgba(255,255,255,.7)", color:"#251a10", outline:"none", boxSizing:"border-box" }}/>
+        </div>
+        <div style={{ marginTop:8 }}>
+          <div style={{ fontSize:12, color:"#5a7060", marginBottom:4 }}>無驗出的茶葉（ppm，通常填 0）</div>
+          <input type="number" step="0.01" value={p.cleanPpm||""} onChange={e=>!readOnly&&set("cleanPpm",e.target.value)}
+            placeholder="如 0（未驗出）" readOnly={readOnly}
+            style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:"1px solid #d0c8be", fontSize:"16px", fontFamily:"serif", background:"rgba(255,255,255,.7)", color:"#251a10", outline:"none", boxSizing:"border-box" }}/>
+        </div>
+        {blendResult && (
+          <div style={{ marginTop:10, background:"#fff", borderRadius:8, padding:"12px", border:"1px solid #6dab85" }}>
+            <div style={{ fontSize:12, color:"#5a7060", marginBottom:6 }}>拼配建議（低於 0.05 ppm）：</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <div style={{ flex:1, background:"#fff8e7", borderRadius:8, padding:"8px", textAlign:"center", border:"1px solid #d4b04a" }}>
+                <div style={{ fontSize:11, color:"#8b6a20" }}>驗出茶葉最多</div>
+                <div style={{ fontSize:20, fontWeight:"bold", color:"#a07828" }}>{blendResult.maxRatio}%</div>
+              </div>
+              <div style={{ flex:1, background:"#eef7f1", borderRadius:8, padding:"8px", textAlign:"center", border:"1px solid #6dab85" }}>
+                <div style={{ fontSize:11, color:"#3d6b50" }}>無驗出茶葉至少</div>
+                <div style={{ fontSize:20, fontWeight:"bold", color:"#3d6b50" }}>{blendResult.cleanRatio}%</div>
+              </div>
+            </div>
+            <div style={{ fontSize:11, color:"#8b9a88", marginTop:6, textAlign:"center" }}>
+              拼配後約 {blendResult.blendPpm} ppm，低於定量極限 ✓
+            </div>
+          </div>
+        )}
+        {detected > 0 && detected <= MRL && (
+          <div style={{ marginTop:10, background:"#eef7f1", borderRadius:8, padding:"10px", border:"1px solid #6dab85", textAlign:"center" }}>
+            <div style={{ fontSize:13, color:"#3d6b50", fontWeight:"bold" }}>✓ 此批次已低於定量極限，不需要拼配稀釋</div>
+          </div>
+        )}
+      </div>
       <div style={{ display:"flex", gap:10, marginBottom:14 }}>
         {[{v:true,l:"✓ 合格",c:"#3d6b50"},{v:false,l:"✗ 不合格",c:"#b84040"}].map(opt=>(
           <button key={String(opt.v)} onClick={()=>!readOnly&&set("passed",opt.v)}
@@ -316,11 +380,24 @@ export default function App() {
   const saveJudge = (submit) => {
     const updated = { ...curJudge, submitted:submit };
     if (judgeFor==="batch") {
-      const nb = { ...curBatch, judges:curBatch.judges.map(j=>j.id===updated.id?updated:j) };
+      const newJudges = curBatch.judges.map(j=>j.id===updated.id?updated:j);
+      // 重新計算平均分和等級
+      const done = newJudges.filter(j=>j.submitted);
+      let nb = { ...curBatch, judges:newJudges };
+      if (done.length > 0 && nb.finalized) {
+        const avg = Math.round(done.reduce((s,j)=>s+calcScore(j.dims),0)/done.length);
+        nb = { ...nb, finalScore:avg, finalGrade:getGrade(avg).id };
+      }
       updateBatch(nb);
       setPage("batch");
     } else {
-      const nb = { ...curBlend, judges:curBlend.judges.map(j=>j.id===updated.id?updated:j) };
+      const newJudges = curBlend.judges.map(j=>j.id===updated.id?updated:j);
+      const done = newJudges.filter(j=>j.submitted);
+      let nb = { ...curBlend, judges:newJudges };
+      if (done.length > 0 && nb.finalized) {
+        const avg = Math.round(done.reduce((s,j)=>s+calcScore(j.dims),0)/done.length);
+        nb = { ...nb, finalScore:avg, finalGrade:getGrade(avg).id };
+      }
       updateBlend(nb);
       setPage("blend");
     }
@@ -376,8 +453,8 @@ export default function App() {
           {liveItem.judges.map(j=>{
             const sc = j.submitted ? calcScore(j.dims) : null;
             return (
-              <div key={j.id} onClick={()=>!liveItem.finalized&&openJudge(j,forType)}
-                style={{ display:"flex", alignItems:"center", padding:"11px 0", borderBottom:"1px solid #ece4da", cursor:liveItem.finalized?"default":"pointer" }}>
+              <div key={j.id} onClick={()=>openJudge(j,forType)}
+                style={{ display:"flex", alignItems:"center", padding:"11px 0", borderBottom:"1px solid #ece4da", cursor:"pointer" }}>
                 <div style={{ width:38, height:38, borderRadius:9, background:j.submitted?"#3d6b50":"#c0b8ae", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, color:"#fff", flexShrink:0, marginRight:12 }}>
                   {j.name.slice(0,1)}
                 </div>
@@ -387,7 +464,7 @@ export default function App() {
                   {j.tags.length>0&&<div style={{ fontSize:11, color:"#7a8a78", marginTop:2 }}>{j.tags.slice(0,3).join("、")}</div>}
                 </div>
                 {sc!==null && <div style={{ fontSize:22, fontWeight:"bold", color:"#3d6b50", marginRight:6 }}>{sc}</div>}
-                {!liveItem.finalized && <div style={{ fontSize:13, color:"#b0a090" }}>{j.submitted?"重評":"開始"} ›</div>}
+                <div style={{ fontSize:13, color:"#b0a090" }}>{j.submitted?"修改":"開始"} ›</div>
               </div>
             );
           })}
@@ -628,15 +705,31 @@ export default function App() {
           <div>
             <div style={card}>
               <Lbl>風味標籤（可複選）</Lbl>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:6 }}>
-                {FLAVOR_TAGS.map(t=>{
+              <div style={{ fontSize:11, color:"#3d6b50", marginBottom:6, marginTop:4 }}>▸ 正面風味</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:12 }}>
+                {["花香","蜜香","果香","清新","草香","奶香","高山氣","鮮爽","甘潤","醇厚","清雅","多層次","回甘強","湯色明亮"].map(t=>{
                   const on=curJudge.tags.includes(t);
                   return (
                     <button key={t} onClick={()=>toggleTag(t)}
-                      style={{ padding:"9px 17px", borderRadius:22, fontSize:14, cursor:"pointer", fontFamily:"serif",
+                      style={{ padding:"8px 15px", borderRadius:22, fontSize:14, cursor:"pointer", fontFamily:"serif",
                         border:on?"1.5px solid #3d6b50":"1.5px solid #d0c8be",
                         background:on?"rgba(61,107,80,.14)":"rgba(255,255,255,.5)",
                         color:on?"#24472e":"#7a6a58" }}>
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize:11, color:"#b84040", marginBottom:6 }}>▸ 負面風味</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                {["臭菁","火味","乾燥味","水味","空洞","菁澀","悶味","雜味","老葉味","異味"].map(t=>{
+                  const on=curJudge.tags.includes(t);
+                  return (
+                    <button key={t} onClick={()=>toggleTag(t)}
+                      style={{ padding:"8px 15px", borderRadius:22, fontSize:14, cursor:"pointer", fontFamily:"serif",
+                        border:on?"1.5px solid #b84040":"1.5px solid #d0c8be",
+                        background:on?"rgba(184,64,64,.12)":"rgba(255,255,255,.5)",
+                        color:on?"#b84040":"#7a6a58" }}>
                       {t}
                     </button>
                   );
