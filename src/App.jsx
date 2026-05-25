@@ -306,6 +306,7 @@ export default function App() {
 
   // add blend form
   const [blendSrcs, setBlendSrcs] = useState([]);
+  const [blendManualSrcs, setBlendManualSrcs] = useState("");
   const [blendCustomNo, setBlendCustomNo] = useState("");
   const [blendNotes, setBlendNotes] = useState("");
   const [blendDate, setBlendDate]   = useState(todayStr());
@@ -348,13 +349,16 @@ export default function App() {
   };
 
   const createBlend = () => {
-    const srcNos = blendSrcs.map(id=>batches.find(b=>b.id===id)?.batchNo||id);
-    const autoNo = suggestBlendId(srcNos);
+    const srcNosFromIds = blendSrcs.map(id=>batches.find(b=>b.id===id)?.batchNo||id);
+    const srcNosFromText = blendManualSrcs.split(",").map(s=>s.trim()).filter(Boolean);
+    const allSrcNos = [...new Set([...srcNosFromIds, ...srcNosFromText])];
+    const autoNo = allSrcNos.length > 0 ? suggestBlendId(allSrcNos) : `BL-${todayStr().replace(/-/g,"").slice(2)}`;
     const blendNo = blendCustomNo.trim() || autoNo;
-    const bl = { id:uid(), blendNo, date:blendDate, sourceIds:blendSrcs, sourceNos:srcNos,
+    const bl = { id:uid(), blendNo, date:blendDate, sourceIds:blendSrcs, sourceNos:allSrcNos,
                  judges:[], finalized:false, pesticide:null, notes:blendNotes };
     setBlends(bls=>[bl,...bls]);
-    setBlendSrcs([]); setBlendCustomNo(""); setBlendNotes(""); setBlendDate(todayStr());
+    upsertBlend(bl);
+    setBlendSrcs([]); setBlendManualSrcs(""); setBlendCustomNo(""); setBlendNotes(""); setBlendDate(todayStr());
     setShowAddBlend(false);
   };
 
@@ -1150,34 +1154,30 @@ export default function App() {
       {showAddBlend && (
         <Modal onClose={()=>setShowAddBlend(false)} title="新增拼配批次">
           <div style={{ marginBottom:12 }}>
-            <Lbl>選擇來源批次（3～5批）</Lbl>
-            {batches.filter(b=>b.finalized).length===0&&<div style={{ fontSize:13,color:"#b07a6a",marginBottom:8 }}>⚠️ 需先有已定級的原批次才能拼配</div>}
-            <div style={{ maxHeight:180, overflowY:"auto", border:"1px solid #d0c8be", borderRadius:10, background:"rgba(255,255,255,.5)" }}>
-              {batches.filter(b=>b.finalized).map(b=>{
-                const on=blendSrcs.includes(b.id);
-                return (
-                  <div key={b.id} onClick={()=>setBlendSrcs(s=>on?s.filter(x=>x!==b.id):[...s,b.id])}
-                    style={{ display:"flex",alignItems:"center",padding:"10px 12px",borderBottom:"1px solid #ece4da",cursor:"pointer",background:on?"rgba(61,107,80,.08)":"transparent" }}>
-                    <div style={{ width:22,height:22,borderRadius:6,border:`2px solid ${on?"#3d6b50":"#d0c8be"}`,background:on?"#3d6b50":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginRight:10 }}>
-                      {on&&<span style={{ color:"#fff",fontSize:13 }}>✓</span>}
+            <Lbl>來源批次（可勾選或直接填寫批號）</Lbl>
+            {/* 已定級批次快速勾選 */}
+            {batches.filter(b=>b.finalized).length>0&&(
+              <div style={{ maxHeight:150, overflowY:"auto", border:"1px solid #d0c8be", borderRadius:10, background:"rgba(255,255,255,.5)", marginBottom:8 }}>
+                {batches.filter(b=>b.finalized).map(b=>{
+                  const on=blendSrcs.includes(b.id);
+                  return (
+                    <div key={b.id} onClick={()=>setBlendSrcs(s=>on?s.filter(x=>x!==b.id):[...s,b.id])}
+                      style={{ display:"flex",alignItems:"center",padding:"10px 12px",borderBottom:"1px solid #ece4da",cursor:"pointer",background:on?"rgba(61,107,80,.08)":"transparent" }}>
+                      <div style={{ width:22,height:22,borderRadius:6,border:`2px solid ${on?"#3d6b50":"#d0c8be"}`,background:on?"#3d6b50":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginRight:10 }}>
+                        {on&&<span style={{ color:"#fff",fontSize:13 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize:14,fontWeight:"bold",color:"#251a10",flex:1 }}>{b.batchNo}</span>
+                      <span style={{ fontSize:12,color:"#7a6a58" }}>{b.date}</span>
+                      <span style={{ fontSize:13,fontWeight:"bold",color:GRADES.find(g=>g.id===b.finalGrade)?.color,marginLeft:8 }}>{b.finalScore}</span>
                     </div>
-                    <span style={{ fontSize:14,fontWeight:"bold",color:"#251a10",flex:1 }}>{b.batchNo}</span>
-                    <span style={{ fontSize:12,color:"#7a6a58" }}>{b.date}</span>
-                    <span style={{ fontSize:13,fontWeight:"bold",color:GRADES.find(g=>g.id===b.finalGrade)?.color,marginLeft:8 }}>{b.finalScore}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          {blendSrcs.length>0&&(
-            <div style={{ marginBottom:12 }}>
-              <Lbl>建議批號</Lbl>
-              <div style={{ fontSize:16,fontWeight:"bold",color:"#3d6b50" }}>
-                {suggestBlendId(blendSrcs.map(id=>batches.find(b=>b.id===id)?.batchNo||""))}
+                  );
+                })}
               </div>
-            </div>
-          )}
-          <MInput label="自訂批號（留空則自動生成）" val={blendCustomNo} set={setBlendCustomNo} ph="如 BL-0501A+0503B"/>
+            )}
+            {/* 自由輸入來源批號 */}
+            <MInput label="手動輸入來源批號（用逗號分隔）" val={blendManualSrcs} set={setBlendManualSrcs} ph="如 DB-20250501-春, LS-20250503-春"/>
+          </div>
+          <MInput label="拼配批號（必填）" val={blendCustomNo} set={setBlendCustomNo} ph="如 BL-0501A+0503B"/>
           <div style={{ marginBottom:12 }}>
             <Lbl>拼配日期</Lbl>
             <input type="date" value={blendDate} onChange={e=>setBlendDate(e.target.value)} style={inputStyle}/>
@@ -1185,7 +1185,7 @@ export default function App() {
           <MInput label="備註" val={blendNotes} set={setBlendNotes} ph="選填"/>
           <div style={{ display:"flex", gap:8, marginTop:4 }}>
             <Btn label="取消" onClick={()=>setShowAddBlend(false)} secondary/>
-            <Btn label="建立拼配" onClick={createBlend} disabled={blendSrcs.length<2}/>
+            <Btn label="建立拼配" onClick={createBlend} disabled={!blendCustomNo.trim()&&blendSrcs.length===0&&!blendManualSrcs.trim()}/>
           </div>
         </Modal>
       )}
