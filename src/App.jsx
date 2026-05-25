@@ -310,6 +310,7 @@ export default function App() {
   const [blendCustomNo, setBlendCustomNo] = useState("");
   const [blendNotes, setBlendNotes] = useState("");
   const [blendDate, setBlendDate]   = useState(todayStr());
+  const [blendPkg, setBlendPkg]     = useState("");
 
   // add judge
   const [nJudgeName, setNJudgeName] = useState("");
@@ -355,10 +356,10 @@ export default function App() {
     const autoNo = allSrcNos.length > 0 ? suggestBlendId(allSrcNos) : `BL-${todayStr().replace(/-/g,"").slice(2)}`;
     const blendNo = blendCustomNo.trim() || autoNo;
     const bl = { id:uid(), blendNo, date:blendDate, sourceIds:blendSrcs, sourceNos:allSrcNos,
-                 judges:[], finalized:false, pesticide:null, notes:blendNotes };
+                 judges:[], finalized:false, pesticide:null, notes:blendNotes, pkg:blendPkg };
     setBlends(bls=>[bl,...bls]);
     upsertBlend(bl);
-    setBlendSrcs([]); setBlendManualSrcs(""); setBlendCustomNo(""); setBlendNotes(""); setBlendDate(todayStr());
+    setBlendSrcs([]); setBlendManualSrcs(""); setBlendCustomNo(""); setBlendNotes(""); setBlendDate(todayStr()); setBlendPkg("");
     setShowAddBlend(false);
   };
 
@@ -539,8 +540,9 @@ export default function App() {
           <div style={{ fontSize:10, color:"#6aab82", letterSpacing:3, marginBottom:6 }}>📦 包裝建議</div>
           <div style={{ fontSize:16, fontWeight:"bold", marginBottom:4 }}>{g.pkg}</div>
           <div style={{ fontSize:20, color:"#a8c4a0", fontWeight:"bold" }}>{g.price}</div>
+          {item.pkg&&<div style={{ fontSize:15, color:"#7ab893", marginTop:6, fontWeight:"bold" }}>品項：{item.pkg}</div>}
           <div style={{ fontSize:11, color:"#6a9c70", marginTop:8 }}>
-            福壽山順韻茶葉 · {item.batchNo||item.blendNo} · {item.date}
+            茶葉品評 · {item.batchNo||item.blendNo} · {item.date}
             {isBlend && item.sourceNos?.length && <span style={{ display:"block", marginTop:3 }}>來源：{item.sourceNos.join(" + ")}</span>}
           </div>
         </div>
@@ -829,8 +831,8 @@ export default function App() {
             <button onClick={goBack} style={{ background:"none",border:"none",color:"#8dc4a0",fontSize:24,cursor:"pointer",padding:0,lineHeight:1 }}>←</button>
           )}
           <div style={{ flex:1 }}>
-            <div style={{ fontSize:10, color:"#6aab82", letterSpacing:4 }}>FU SHOU SHAN SHUN YUN · TEA EVALUATION</div>
-            <div style={{ fontSize:17, color:"#e6f0e6", letterSpacing:.5, marginTop:2 }}>福壽山順韻茶葉 品評定級系統</div>
+            <div style={{ fontSize:10, color:"#6aab82", letterSpacing:4 }}>TEA FLAVOR EVALUATION SYSTEM</div>
+            <div style={{ fontSize:17, color:"#e6f0e6", letterSpacing:.5, marginTop:2 }}>茶葉品評風味系統</div>
           </div>
           <button onClick={async()=>{ setLoading(true); const d=await loadData(); if(d){setBatches(d.batches||[]);setBlends(d.blends||[]);} setLoading(false); }} style={{ background:"rgba(140,196,160,.15)",border:"1px solid rgba(140,196,160,.3)",color:"#8dc4a0",borderRadius:18,padding:"5px 12px",fontSize:11,cursor:"pointer" }}>
             ↻ 同步
@@ -970,6 +972,11 @@ export default function App() {
             <div style={{ fontSize:10,color:"#6aabc4",letterSpacing:3,marginBottom:4 }}>BLEND · 拼配批次</div>
             <div style={{ fontSize:22, fontWeight:"bold", marginBottom:4 }}>{curBlend.blendNo}</div>
             <div style={{ fontSize:13, color:"#8dc0c4", marginBottom:6 }}>{curBlend.date}</div>
+            {curBlend.pkg ? (
+              <div style={{ fontSize:13, color:"#a8d4dc", marginBottom:6 }}>📦 {curBlend.pkg}</div>
+            ) : (
+              <div style={{ fontSize:11, color:"#6aabc4", marginBottom:6 }}>📦 包裝品項未填寫</div>
+            )}
             <div style={{ fontSize:12, color:"#6aabc4" }}>來源批次</div>
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:4 }}>
               {curBlend.sourceNos?.map(no=><span key={no} style={{ fontSize:13, background:"rgba(100,180,200,.2)", color:"#b0d8e0", borderRadius:8, padding:"3px 10px", border:"1px solid rgba(100,180,200,.3)" }}>{no}</span>)}
@@ -983,6 +990,14 @@ export default function App() {
               農藥檢驗記錄 {curBlend.pesticide?(curBlend.pesticide.passed?"✓":"✗"):"（未填）"}
             </button>
           )}
+          {/* 包裝品項可隨時編輯 */}
+          <div style={{ ...card, marginTop:8 }}>
+            <Lbl>包裝品項</Lbl>
+            <input value={curBlend.pkg||""} onChange={e=>{
+              const updated={...curBlend,pkg:e.target.value};
+              updateBlend(updated);
+            }} placeholder="填寫包裝品項，如 頂級木盒禮裝" style={inputStyle}/>
+          </div>
           <button onClick={()=>{
             if(window.confirm(`確定刪除「${curBlend.blendNo}」？此動作無法復原`)){
               setBlends(bls=>bls.filter(b=>b.id!==curBlend.id));
@@ -1028,7 +1043,7 @@ export default function App() {
       {/* ══ SUMMARY */}
       {page==="summary" && (
         <div style={{ padding:"14px 14px 40px" }}>
-          <h2 style={{ fontSize:16,color:"#2c4a32",margin:"4px 0 14px",letterSpacing:1 }}>◈ 福壽山順韻 品評總覽</h2>
+          <h2 style={{ fontSize:16,color:"#2c4a32",margin:"4px 0 14px",letterSpacing:1 }}>◈ 茶葉品評風味 總覽</h2>
           {[["原批次",batches],["拼配批次",blends]].map(([lbl,list])=>{
             const fin=list.filter(b=>b.finalized);
             const scores=fin.map(b=>b.finalScore);
@@ -1183,6 +1198,7 @@ export default function App() {
             <input type="date" value={blendDate} onChange={e=>setBlendDate(e.target.value)} style={inputStyle}/>
           </div>
           <MInput label="備註" val={blendNotes} set={setBlendNotes} ph="選填"/>
+          <MInput label="包裝品項（可後填）" val={blendPkg} set={setBlendPkg} ph="如 頂級木盒禮裝、典藏罐裝"/>
           <div style={{ display:"flex", gap:8, marginTop:4 }}>
             <Btn label="取消" onClick={()=>setShowAddBlend(false)} secondary/>
             <Btn label="建立拼配" onClick={createBlend} disabled={!blendCustomNo.trim()&&blendSrcs.length===0&&!blendManualSrcs.trim()}/>
