@@ -973,9 +973,9 @@ export default function App() {
             <div style={{ fontSize:22, fontWeight:"bold", marginBottom:4 }}>{curBlend.blendNo}</div>
             <div style={{ fontSize:13, color:"#8dc0c4", marginBottom:6 }}>{curBlend.date}</div>
             {curBlend.pkg ? (
-              <div style={{ fontSize:13, color:"#a8d4dc", marginBottom:6 }}>📦 {curBlend.pkg}</div>
+              <div style={{ fontSize:13, color:"#a8d4dc", marginBottom:6 }}>🗺️ {curBlend.pkg}</div>
             ) : (
-              <div style={{ fontSize:11, color:"#6aabc4", marginBottom:6 }}>📦 包裝品項未填寫</div>
+              <div style={{ fontSize:11, color:"#6aabc4", marginBottom:6 }}>📦 產地品項未填寫</div>
             )}
             <div style={{ fontSize:12, color:"#6aabc4" }}>來源批次</div>
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:4 }}>
@@ -996,7 +996,7 @@ export default function App() {
             <input value={curBlend.pkg||""} onChange={e=>{
               const updated={...curBlend,pkg:e.target.value};
               updateBlend(updated);
-            }} placeholder="填寫包裝品項，如 頂級木盒禮裝" style={inputStyle}/>
+            }} placeholder="填寫包裝品項，如 華崗、福壽山" style={inputStyle}/>
           </div>
           <button onClick={()=>{
             if(window.confirm(`確定刪除「${curBlend.blendNo}」？此動作無法復原`)){
